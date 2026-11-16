@@ -100,6 +100,11 @@ always stops in fastboot, which is useful for a first install.
 
 ## Install
 
+Prebuilt images are on the
+[releases page](https://github.com/cstroie/OpenStick-UF896/releases): the
+release notes list each file and its partition. To build your own, see
+[Build](#build).
+
 Everything below goes through EDL, so each write can be read back and
 compared. Use the [edl](https://github.com/bkerler/edl) tool with an MSM8916
 firehose programmer (`prog_emmc_firehose_8916.mbn`). Below, `L` stands for
