@@ -1,0 +1,52 @@
+From: Costin Stroie
+Subject: [PATCH] partition_parser: keep eMMC contents and GPT layout on
+ "fastboot flash partition"
+
+Upstream write_gpt() erases the whole eMMC before writing a new GPT, and
+patch_gpt() stretches the *last entry of the table* to the end of the card.
+On the UF896 that destroys the modem calibration partitions (modemst1/2,
+fsg, persist) and, because the last entry is persist, would make it
+overlap rootfs. Keep the card contents and every partition boundary
+exactly as given in the GPT image.
+
+diff --git a/platform/msm_shared/partition_parser.c b/platform/msm_shared/partition_parser.c
+index 5b5d3196..9dec4fb6 100644
+--- a/platform/msm_shared/partition_parser.c
++++ b/platform/msm_shared/partition_parser.c
+@@ -646,26 +646,7 @@ patch_gpt(uint8_t *gptImage, uint64_t density, uint32_t array_size,
+ 		      ((long long)(card_size_sec -
+ 					(ptn_entries_blocks + GPT_HEADER_BLOCKS))));
+ 
+-	/* Find last partition */
+-	last_partition_entry = (unsigned long long *)
+-		(primary_gpt_header + block_size + total_part * ENTRY_SIZE);
+-	//need check 128 bit for GUID
+-	while (*last_partition_entry != 0 ||
+-		*(last_partition_entry + 1) != 0 ) {
+-		total_part++;
+-		last_partition_entry = (unsigned long long *)
+-			(primary_gpt_header + block_size + total_part * ENTRY_SIZE);
+-	}
+-
+-	/* Patching last partition */
+-	last_part_offset =
+-	    (total_part - 1) * ENTRY_SIZE + PARTITION_ENTRY_LAST_LBA;
+-	PUT_LONG_LONG(primary_gpt_header + block_size + last_part_offset,
+-		      (long long)(card_size_sec -
+-					(ptn_entries_blocks + GPT_HEADER_BLOCKS + 1)));
+-	PUT_LONG_LONG(primary_gpt_header + block_size + last_part_offset +
+-		      array_size, (long long)(card_size_sec -
+-				(ptn_entries_blocks + GPT_HEADER_BLOCKS + 1)));
++	/* UF896: preserve all partition boundaries from the GPT image. */
+ 
+ 	/* Updating CRC of the Partition entry array in both headers */
+ 	partition_entry_array_start = (unsigned int)primary_gpt_header + block_size;
+@@ -752,7 +733,7 @@ static unsigned int write_gpt(uint32_t size, uint8_t *gptImage, uint32_t block_s
+ 		  max_partition_count, partition_entry_size, block_size);
+ 
+ 	/* Erasing the eMMC card before writing */
+-	ret = mmc_erase_card(0x00000000, device_density);
++	ret = 0; /* UF896: preserve eMMC contents */
+ 	if (ret) {
+ 		dprintf(CRITICAL, "Failed to erase the eMMC card\n");
+ 		goto end;
