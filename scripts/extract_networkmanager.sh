@@ -126,7 +126,7 @@ if [ "\${BIN}" = "chroot.sh" ]; then
     exit 1
 fi
 
-unshare -mr chroot /usr/local \${BIN} \$@
+unshare -mr chroot /usr/local "\${BIN}" "\$@"
 EOF
 chmod a+x ${CHROOT}/usr/local/bin/chroot.sh
 
