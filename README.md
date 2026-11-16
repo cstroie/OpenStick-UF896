@@ -63,6 +63,11 @@ eMMC is read, so it works even when the bootloader is broken:
    bridge for about 5 seconds, then release.
 3. `lsusb` shows `05c6:9008 Qualcomm ... (QDL mode)`.
 
+![UF896 test pads](docs/img/uf896-edl-pads-annotated.jpg)
+
+Photos of both sides of the board and the full step-by-step recovery of a
+bricked stick are in [docs/RECOVERY.md](docs/RECOVERY.md).
+
 Pad map and EDL method: Cole Mickens and Informatic (see [Credits](#credits)).
 
 Other ways in:
