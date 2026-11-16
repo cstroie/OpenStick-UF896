@@ -1,0 +1,17 @@
+#!/bin/sh
+# UF896 LEDs: red = heartbeat, green = USB traffic, blue = Wi-Fi traffic
+L=/sys/class/leds
+modprobe ledtrig-netdev
+
+echo heartbeat > "$L/red:power/trigger"
+
+# blink on traffic only (no steady "link" light)
+netled() {
+    echo netdev > "$L/$1/trigger"
+    echo "$2"   > "$L/$1/device_name"
+    echo 0 > "$L/$1/link"
+    echo 1 > "$L/$1/tx"
+    echo 1 > "$L/$1/rx"
+}
+netled green:wlan usb0
+netled blue:wan   wlan0

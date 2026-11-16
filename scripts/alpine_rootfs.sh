@@ -1,7 +1,7 @@
 #!/bin/sh -e
 
 export CHROOT=${CHROOT=$(pwd)/rootfs}
-export HOST_NAME=${HOST_NAME=openstick-alpine}
+export HOST_NAME=${HOST_NAME=openstick}
 export RELEASE=${RELEASE=v3.24}
 export PMOS_RELEASE=${PMOS_RELEASE=v25.12}
 export MIRROR=${MIRROR=http://dl-cdn.alpinelinux.org/alpine}
@@ -33,7 +33,6 @@ chroot ${CHROOT} ash -l -c "
 apk add --allow-untrusted postmarketos-keys@pmos
 apk add \
     bridge-utils \
-    chrony \
     dropbear \
     dbus \
     eudev \
@@ -100,6 +99,10 @@ rc-update add modemmanager default
 rc-update add networkmanager default
 rc-update add networkmanager-dispatcher default
 rc-update add wpa_supplicant default
+rc-update add syslog boot
+rc-update add klogd boot
+rc-update add ntpd default
+rc-update add local default
 "
 echo 'user ALL=(ALL:ALL) NOPASSWD: ALL' > ${CHROOT}/etc/sudoers.d/user
 
@@ -147,6 +150,10 @@ done
 
 # update fstab
 printf '%s\t/boot\text2\tdefaults\t0 2\n' "${BOOT_DEV}" >> ${CHROOT}/etc/fstab
+
+# LEDs: heartbeat on red, USB/Wi-Fi traffic on green/blue (run by 'local')
+install -m 0755 configs/leds.start ${CHROOT}/etc/local.d/leds.start
+echo ledtrig-netdev >> ${CHROOT}/etc/modules
 
 # copy gadget-tool templates and script
 cp -a configs/templates ${CHROOT}/etc/gt
