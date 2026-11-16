@@ -2,6 +2,12 @@ name: Build
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -16,7 +22,12 @@ jobs:
         run: sudo sh -e scripts/install_deps.sh
 
       - name: Build hyp and aboot firmware
-        run: sudo sh -e scripts/build_hyp_aboot.sh
+        run: |
+          # fastboot-only aboot first (for first installs), then the normal one
+          sudo env LK2ND_FORCE_FASTBOOT=1 sh -e scripts/build_hyp_aboot.sh
+          sudo mv files/aboot.mbn files/aboot-fastboot.mbn
+          sudo rm -rf src/lk2nd/build-lk1st-msm8916
+          sudo env LK2ND_FORCE_FASTBOOT=0 sh -e scripts/build_hyp_aboot.sh
 
       - name: Extract MSM8916 firmware
         run: sudo sh -e scripts/extract_fw.sh
@@ -27,8 +38,46 @@ jobs:
       - name: Create images
         run: sudo sh -e scripts/build_images.sh
 
+      - name: Check images
+        run: |
+          set -e
+          # setuid bits survived, fstab points /boot at the boot PARTUUID
+          for f in /usr/bin/sudo /usr/bin/passwd; do
+            mode=$(sudo debugfs -R "stat $f" rootfs.raw 2>/dev/null | sed -n 's/.*Mode: *\([0-7]*\).*/\1/p')
+            echo "$f mode $mode"
+            [ $((0$mode & 04000)) -ne 0 ]
+          done
+          sudo debugfs -R 'cat /etc/fstab' rootfs.raw 2>/dev/null | grep -q '^PARTUUID=8e1d98a7-e738-4ff8-8052-f41c21c84f00[[:space:]]/boot'
+          grep -q 'thwc,uf896' files/aboot.mbn
+          grep -q 'thwc,uf896' files/aboot-fastboot.mbn
+
+      - name: Package release files
+        run: |
+          set -e
+          mkdir -p release
+          cp files/aboot.mbn files/aboot-fastboot.mbn files/hyp.mbn \
+             files/sbl1.mbn files/rpm.mbn files/tz.mbn \
+             files/LICENSE.qcom.txt scripts/uf896_gpt.py release/
+          # sparse images for fastboot
+          cp files/boot.bin release/boot-sparse.img
+          cp files/alpine_rootfs.bin release/rootfs-sparse.img
+          # raw images for edl
+          xz -T0 -6 -c boot.raw   > release/boot.img.xz
+          xz -T0 -6 -c rootfs.raw > release/rootfs.img.xz
+          (cd release && sha256sum * > SHA256SUMS)
+          ls -la release
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: openstick-alpine
-          path: files/*
+          name: openstick-uf896
+          path: release/*
+
+      - name: Create draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --draft --title "OpenStick UF896 $GITHUB_REF_NAME" \
+            --notes-file docs/RELEASE_NOTES.md

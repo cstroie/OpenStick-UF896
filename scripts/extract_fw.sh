@@ -48,6 +48,8 @@ wget -P ${TMPDIR} ${SRC}
 echo "${SHA256} ${TMPDIR}/${FNAME}" | sha256sum -c
 
 unzip -o -j -d files/ ${TMPDIR}/${FNAME} ${FNAME%.*}/rpm.mbn ${FNAME%.*}/sbl1.mbn ${FNAME%.*}/tz.mbn
+# the Qualcomm license requires its text to travel with the binaries
+unzip -p ${TMPDIR}/${FNAME} ${FNAME%.*}/LICENSE > files/LICENSE.qcom.txt
 
 cleanup() {
     rm -rf ${TMPDIR}
