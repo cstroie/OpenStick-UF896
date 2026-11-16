@@ -7,6 +7,8 @@ export PMOS_RELEASE=${PMOS_RELEASE=v25.12}
 export MIRROR=${MIRROR=http://dl-cdn.alpinelinux.org/alpine}
 export PMOS_MIRROR=${PMOS_MIRROR=http://mirror.postmarketos.org/postmarketos}
 export APK_STATIC_URL=https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v3.0.6/x86_64/apk.static
+# /boot device for fstab; default is the 'boot' partition of files/gpt-uf896-128.bin
+export BOOT_DEV=${BOOT_DEV=PARTUUID=8e1d98a7-e738-4ff8-8052-f41c21c84f00}
 
 rm -rf ${CHROOT}
 
@@ -128,8 +130,23 @@ cp configs/extlinux.conf ${CHROOT}/boot/extlinux
 # copy custom dtb's
 cp dtbs/* ${CHROOT}/boot/dtbs/qcom
 
+# restore ownership/modes recorded in the apk database: apk running under
+# qemu inside the chroot drops setuid/setgid bits (sudo, passwd, unix_chkpwd...)
+awk '
+/^F:/ { dir = substr($0, 3); file = ""; next }
+/^M:/ { split(substr($0, 3), a, ":"); print a[1], a[2], a[3], "/" dir; next }
+/^R:/ { file = (dir == "" ? "" : dir "/") substr($0, 3); next }
+/^a:/ { if (file != "") { split(substr($0, 3), a, ":"); print a[1], a[2], a[3], "/" file }; next }
+/^$/  { dir = ""; file = "" }
+' ${CHROOT}/lib/apk/db/installed | while read -r uid gid mode path; do
+    p="${CHROOT}${path}"
+    [ -e "$p" ] && [ ! -L "$p" ] || continue
+    chown "$uid:$gid" "$p"
+    chmod "$mode" "$p"
+done
+
 # update fstab
-echo "/dev/mmcblk0p14\t/boot\text2\tdefaults\t0 2" >> ${CHROOT}/etc/fstab
+printf '%s\t/boot\text2\tdefaults\t0 2\n' "${BOOT_DEV}" >> ${CHROOT}/etc/fstab
 
 # copy gadget-tool templates and script
 cp -a configs/templates ${CHROOT}/etc/gt
