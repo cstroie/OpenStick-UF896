@@ -9,6 +9,14 @@ export PMOS_MIRROR=${PMOS_MIRROR=http://mirror.postmarketos.org/postmarketos}
 export APK_STATIC_URL=https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v3.0.6/x86_64/apk.static
 # /boot device for fstab; default is the 'boot' partition of files/gpt-uf896-128.bin
 export BOOT_DEV=${BOOT_DEV=PARTUUID=8e1d98a7-e738-4ff8-8052-f41c21c84f00}
+# BOARD selects the kernel DTB: uf896 (default) or uz801 (UZ801 v3)
+export BOARD=${BOARD=uf896}
+export USER_NAME=${USER_NAME=user}
+case "${BOARD}" in
+uf896) DTB=msm8916-thwc-uf896 ;;
+uz801) DTB=msm8916-yiming-uz801v3 ;;
+*) echo "ERROR: unknown BOARD=${BOARD}" >&2; exit 1 ;;
+esac
 
 rm -rf ${CHROOT}
 
@@ -61,7 +69,7 @@ scripts/extract_networkmanager.sh
 
 # setup alpine
 chroot ${CHROOT} ash -l -c "
-echo user:1::::/home/user:/bin/ash | newusers
+echo ${USER_NAME}:1::::/home/${USER_NAME}:/bin/ash | newusers
 
 # update users used by chrooted apps
 addgroup -S dnsmasq
@@ -104,7 +112,7 @@ rc-update add klogd boot
 rc-update add ntpd default
 rc-update add local default
 "
-echo 'user ALL=(ALL:ALL) NOPASSWD: ALL' > ${CHROOT}/etc/sudoers.d/user
+echo "${USER_NAME} ALL=(ALL:ALL) NOPASSWD: ALL" > ${CHROOT}/etc/sudoers.d/${USER_NAME}
 
 # add udev rules
 cat << EOF > ${CHROOT}/etc/udev/rules.d/10-udc.rules
@@ -118,6 +126,9 @@ EOF
 # enable autologin on console
 sed -i '/^tty/ s/^/#/' ${CHROOT}/etc/inittab
 echo 'ttyMSM0::respawn:/bin/sh' >> ${CHROOT}/etc/inittab
+# login on the USB serial gadget; ttyGS0 only exists once the gadget is up,
+# so wait between attempts instead of respawning in a tight loop
+echo 'ttyGS0::respawn:/bin/sh -c "sleep 2; exec /sbin/getty -L 115200 ttyGS0 vt100"' >> ${CHROOT}/etc/inittab
 
 echo ${HOST_NAME} > ${CHROOT}/etc/hostname
 sed -i "/localhost/ s/$/ ${HOST_NAME}/" ${CHROOT}/etc/hosts
@@ -128,7 +139,7 @@ chmod 0600 ${CHROOT}/usr/local/etc/NetworkManager/system-connections/*
 ln -s ../usr/local/etc/NetworkManager ${CHROOT}/etc/NetworkManager
 
 mkdir -p ${CHROOT}/boot/extlinux
-cp configs/extlinux.conf ${CHROOT}/boot/extlinux
+sed "s|msm8916-thwc-uf896|${DTB}|" configs/extlinux.conf > ${CHROOT}/boot/extlinux/extlinux.conf
 
 # copy custom dtb's
 cp dtbs/* ${CHROOT}/boot/dtbs/qcom
