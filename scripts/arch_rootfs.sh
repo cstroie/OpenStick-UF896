@@ -239,6 +239,24 @@ RestartSec=1
 WantedBy=multi-user.target
 EOF
 
+# --- LEDs: red heartbeat, green USB traffic, blue Wi-Fi traffic --------------
+# same LED names on UF896 and UZ801 v3; netdev binds by name, so it can run
+# before usb0/wlan0 exist
+install -m 0755 configs/leds.start "$CHROOT/usr/local/bin/openstick-leds"
+cat > "$U/openstick-leds.service" << 'EOF'
+[Unit]
+Description=OpenStick LEDs (red heartbeat, green USB, blue Wi-Fi traffic)
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/openstick-leds
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 # --- USB gadget (NCM, 192.168.5.1) -------------------------------------------
 install -m 0755 scripts/setup_ncm_gadget.sh "$CHROOT/usr/local/bin/"
 cat > "$CHROOT/etc/udev/rules.d/10-udc.rules" << 'EOF'
@@ -298,7 +316,7 @@ systemctl disable systemd-networkd.service systemd-networkd.socket \
     systemd-resolved.service 2>/dev/null || true
 systemctl enable NetworkManager.service ModemManager.service sshd.service \
     systemd-timesyncd.service msm-firmware-loader.service \
-    msm-firmware-loader-unpack.service rmtfs.service
+    msm-firmware-loader-unpack.service rmtfs.service openstick-leds.service
 "
 
 # --- images ------------------------------------------------------------------

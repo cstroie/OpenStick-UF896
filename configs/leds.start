@@ -1,5 +1,5 @@
 #!/bin/sh
-# UF896 LEDs: red = heartbeat, green = USB traffic, blue = Wi-Fi traffic
+# UF896 / UZ801 v3 LEDs: red = heartbeat, green = USB traffic, blue = Wi-Fi traffic
 L=/sys/class/leds
 modprobe ledtrig-netdev
 
