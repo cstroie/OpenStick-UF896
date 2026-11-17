@@ -7,8 +7,13 @@ export PMOS_RELEASE=${PMOS_RELEASE=v25.12}
 export MIRROR=${MIRROR=http://dl-cdn.alpinelinux.org/alpine}
 export PMOS_MIRROR=${PMOS_MIRROR=http://mirror.postmarketos.org/postmarketos}
 export APK_STATIC_URL=https://gitlab.alpinelinux.org/api/v4/projects/5/packages/generic/v3.0.6/x86_64/apk.static
-# /boot device for fstab; default is the 'boot' partition of files/gpt-uf896-128.bin
-export BOOT_DEV=${BOOT_DEV=PARTUUID=8e1d98a7-e738-4ff8-8052-f41c21c84f00}
+# Filesystem UUIDs used in /etc/fstab. busybox mount cannot resolve
+# PARTUUID=, so fstab uses UUID=; build_images.sh creates the filesystems
+# with these UUIDs. OPT_FSUUID adds an /opt line (format the partition made
+# by uf896_gpt.py --opt with: mkfs.ext4 -L opt -U $OPT_FSUUID ...).
+export ROOT_FSUUID=${ROOT_FSUUID=fcb221c5-4c0c-437e-a5d2-e2cd756ee1fc}
+export BOOT_FSUUID=${BOOT_FSUUID=782dc120-6ede-4dd7-b538-a8cdd98ae480}
+export OPT_FSUUID=${OPT_FSUUID=}
 # BOARD selects the kernel DTB: uf896 (default) or uz801 (UZ801 v3)
 export BOARD=${BOARD=uf896}
 export USER_NAME=${USER_NAME=user}
@@ -159,8 +164,21 @@ awk '
     chmod "$mode" "$p"
 done
 
-# update fstab
-printf '%s\t/boot\text2\tdefaults\t0 2\n' "${BOOT_DEV}" >> ${CHROOT}/etc/fstab
+# update fstab (the NetworkManager chroot binds are already in it)
+{
+    printf 'UUID=%s\t/\text4\tdefaults,noatime\t0 1\n' "${ROOT_FSUUID}"
+    printf 'UUID=%s\t/boot\text2\tdefaults,noatime\t0 2\n' "${BOOT_FSUUID}"
+    [ -z "${OPT_FSUUID}" ] ||
+        printf 'UUID=%s\t/opt\text4\tdefaults,noatime\t0 2\n' "${OPT_FSUUID}"
+    echo
+    echo '# frequently written directories in RAM'
+    echo 'tmpfs\t/tmp\ttmpfs\tnosuid,nodev,mode=1777,size=64M\t0 0'
+    echo 'tmpfs\t/var/tmp\ttmpfs\tnosuid,nodev,mode=1777,size=16M\t0 0'
+    echo 'tmpfs\t/var/log\ttmpfs\tnosuid,nodev,noexec,mode=0755,size=16M\t0 0'
+} >> ${CHROOT}/etc/fstab
+
+# syslog to a 256 KiB RAM ring buffer only (read with logread)
+sed -i 's/^SYSLOGD_OPTS=.*/SYSLOGD_OPTS="-t -C256"/' ${CHROOT}/etc/conf.d/syslog
 
 # LEDs: heartbeat on red, USB/Wi-Fi traffic on green/blue (run by 'local')
 install -m 0755 configs/leds.start ${CHROOT}/etc/local.d/leds.start

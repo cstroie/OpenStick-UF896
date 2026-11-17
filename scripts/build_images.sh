@@ -31,8 +31,11 @@ if [ -n "$OVERLAY" ]; then
 fi
 
 rm -f boot.raw rootfs.raw
-mke2fs -q -t ext2 -L boot -d "$STAGE/boot" boot.raw 64M
-mke2fs -q -t ext4 -L rootfs -d "$STAGE/root" rootfs.raw "$ROOTFS_SIZE"
+# fixed UUIDs: /etc/fstab refers to them (see alpine_rootfs.sh)
+mke2fs -q -t ext2 -L boot -U "${BOOT_FSUUID:-782dc120-6ede-4dd7-b538-a8cdd98ae480}" \
+    -d "$STAGE/boot" boot.raw 64M
+mke2fs -q -t ext4 -L rootfs -U "${ROOT_FSUUID:-fcb221c5-4c0c-437e-a5d2-e2cd756ee1fc}" \
+    -d "$STAGE/root" rootfs.raw "$ROOTFS_SIZE"
 
 # sparse images for fastboot
 img2simg rootfs.raw "$OUT/alpine_rootfs.bin"

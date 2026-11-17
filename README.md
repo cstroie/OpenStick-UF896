@@ -96,7 +96,11 @@ sudo scripts/build_images.sh      # boot.raw / rootfs.raw and sparse images in f
 
 `LK2ND_FORCE_FASTBOOT=1 scripts/build_hyp_aboot.sh` builds an `aboot` that
 always stops in fastboot, which is useful for a first install.
-`BOOT_DEV=...` overrides the `/boot` device written to `fstab`.
+`fstab` mounts `/`, `/boot` (and `/opt` when `OPT_FSUUID` is set) by
+filesystem `UUID=`: busybox `mount` cannot resolve `PARTUUID=`. The UUIDs are
+fixed (`ROOT_FSUUID`, `BOOT_FSUUID`) and `build_images.sh` creates the
+filesystems with them. `/tmp`, `/var/tmp` and `/var/log` are tmpfs, and
+syslog is a 256 KiB RAM ring buffer (`logread`), to spare the eMMC.
 
 ## Install
 
@@ -196,7 +200,7 @@ network comes up after about 10 seconds.
    new `linux-postmarketos-qcom-msm8916`. Otherwise the new kernel lands in
    the rootfs while the modules of the running kernel are replaced.
 
-## UZ801 v3 with Arch Linux ARM
+## UZ801 v3
 
 The UZ801 v3 (stock Android 4.4, `ro.product.model=UZ801`, baseband
 `N958St_Z85`) uses the same MSM8916 and the **same stock GPT** as the UF896,
@@ -218,11 +222,25 @@ user namespace):
 
 ```shell
 BOARD=uz801 scripts/build_hyp_aboot.sh       # files/uz801/{aboot,hyp}.mbn
-scripts/uf896_gpt.py --rootfs-size max stock_gpt.bin files/uz801/gpt.bin
-scripts/arch_rootfs.sh                       # files/uz801/{boot,rootfs}.img
+scripts/uf896_gpt.py --opt --rootfs-size max stock_gpt.bin files/uz801/gpt.bin
+unshare --map-root-user --map-auto --mount sh -ec '
+    BOARD=uz801 USER_NAME=me OPT_FSUUID=$(cat /proc/sys/kernel/random/uuid) \
+        scripts/alpine_rootfs.sh
+    OUT=files/uz801 ROOTFS_SIZE=2686M scripts/build_images.sh'
 ```
 
-`arch_rootfs.sh` uses the Arch Linux ARM aarch64 userland with the
+`--opt` adds a 752 MiB `opt` partition in the free space between `boot` and
+`persist` (the stock `system` area); format it once on the stick with
+`mkfs.ext4 -L opt -U <OPT_FSUUID>`. `OVERLAY=dir` (for `build_images.sh`)
+copies extra files into the rootfs, e.g. SSH keys or Wi-Fi profiles that do
+not belong in the repo.
+
+Getting back into EDL without the pads: `sudo reboot bootloader`, then
+`fastboot oem reboot-edl`.
+
+### Arch Linux ARM (alternative)
+
+`scripts/arch_rootfs.sh` (branch `uz801-arch`) uses the Arch Linux ARM aarch64 userland with the
 postmarketOS MSM8916 kernel. It loads modem and Wi-Fi firmware from the
 stick's own partitions (pmOS `msm-firmware-loader`) and builds `rmtfs` and
 `libqrtr` from source. The image is sized to its contents and grows to the
@@ -231,9 +249,8 @@ reuse the chroot with `RESUME=1`.
 
 Flash as in [Install](#install), with `files/uz801/hyp.mbn`,
 `files/uz801/aboot.mbn`, `boot.img` and `rootfs.img`, and the backup GPT at
-LBA 7634911. The network, login and hotspot settings match the Alpine image.
-Time comes from `systemd-timesyncd`, and the journal is kept in RAM only
-(`journalctl`).
+LBA 7634911. It works, but it uses about twice the RAM of the Alpine image
+and feels slower on this 512 MB board.
 
 ## Credits
 

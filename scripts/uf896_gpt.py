@@ -21,6 +21,9 @@ Changes from stock (all other partitions keep their stock position):
     after persist,
     Linux filesystem type and the fixed PARTUUID used by extlinux.conf
   * cache, recovery and userdata are dropped
+  * with --opt, a Linux partition named 'opt' fills the free space between
+    boot and persist (the stock system area, ~752 MiB); it is appended as
+    the last entry, so existing partition numbers do not change
   * the entry array is widened to 128 entries
 """
 import argparse
@@ -36,6 +39,7 @@ ENTRY_SECTORS = NUM_ENTRIES * ENTRY_SIZE // SECTOR  # 32
 
 BOOT_PARTUUID = uuid.UUID('8e1d98a7-e738-4ff8-8052-f41c21c84f00')
 ROOTFS_PARTUUID = uuid.UUID('a7ab80e8-e9d1-e8cd-f157-93f69b1d141e')
+OPT_PARTUUID = uuid.UUID('2ce59b9c-e479-43e8-ad35-88fcd017b415')
 LINUX_FS_TYPE = uuid.UUID('0fc63daf-8483-4772-8e79-3d69d8477de4')
 
 # name: (first_lba, last_lba) for the partitions that change
@@ -64,6 +68,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('stock', help='stock GPT dump (>= 34 sectors) or full eMMC image')
     ap.add_argument('output', help='output gpt_both image (67 sectors)')
+    ap.add_argument('--opt', action='store_true',
+                    help="add an 'opt' partition between boot and persist")
     ap.add_argument('--rootfs-size', default='1536', metavar='MIB',
                     help='rootfs size in MiB, or "max" to use the rest of '
                          'the eMMC (default: 1536)')
@@ -119,6 +125,18 @@ def main():
             e[48:56] = bytes(8)  # clear stock attributes (bit 60: read-only)
         if name in LAYOUT:
             struct.pack_into('<QQ', e, 32, *LAYOUT[name])
+        out.append(bytes(e))
+
+    if args.opt:
+        byname = {entry_name(e): struct.unpack_from('<QQ', e, 32) for e in out}
+        start, end = byname['boot'][1] + 1, byname['persist'][0] - 1
+        if end - start < 2048:
+            die('no room for opt between boot and persist')
+        e = bytearray(ENTRY_SIZE)
+        e[0:16] = LINUX_FS_TYPE.bytes_le
+        e[16:32] = OPT_PARTUUID.bytes_le
+        struct.pack_into('<QQ', e, 32, start, end)
+        e[56:128] = 'opt'.encode('utf-16le').ljust(72, b'\0')
         out.append(bytes(e))
 
     # overlap / bounds check
