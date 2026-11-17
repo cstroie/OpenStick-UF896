@@ -160,6 +160,7 @@ network comes up after about 10 seconds.
 | Interface | Address |
 | --- | --- |
 | `usb0` (CDC-NCM) | stick `192.168.5.1`, DHCP for the host |
+| USB serial (CDC-ACM) | `/dev/ttyACM0` on the host, login prompt on the Arch image (`ttyGS0`) |
 | `wlan0` hotspot | SSID `Openstick`, password `openstick`, `192.168.4.1` |
 
 - Login over SSH: user `user`, password `1`. Change it right away (`passwd`),

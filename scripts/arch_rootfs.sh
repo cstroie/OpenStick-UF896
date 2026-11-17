@@ -262,6 +262,10 @@ install -m 0755 scripts/setup_ncm_gadget.sh "$CHROOT/usr/local/bin/"
 cat > "$CHROOT/etc/udev/rules.d/10-udc.rules" << 'EOF'
 ACTION=="add", SUBSYSTEM=="udc", RUN+="/usr/bin/modprobe libcomposite", RUN+="/usr/local/bin/setup_ncm_gadget.sh"
 EOF
+# login on the USB serial port (ttyGS0 appears once the gadget is bound)
+cat > "$CHROOT/etc/udev/rules.d/90-ttyGS0-getty.rules" << 'EOF'
+SUBSYSTEM=="tty", KERNEL=="ttyGS0", TAG+="systemd", ENV{SYSTEMD_WANTS}+="serial-getty@ttyGS0.service"
+EOF
 cat > "$CHROOT/etc/udev/rules.d/99-nm-usb0.rules" << 'EOF'
 SUBSYSTEM=="net", ACTION=="add|change|move", ENV{DEVTYPE}=="gadget", ENV{NM_UNMANAGED}="0"
 EOF
@@ -275,6 +279,12 @@ chmod 0600 "$CHROOT"/etc/NetworkManager/system-connections/*
 # it systemd-tmpfiles recreates the link to the (disabled) resolved stub.
 rm -f "$CHROOT/etc/resolv.conf"
 : > "$CHROOT/etc/resolv.conf"
+# NM would pick dns=systemd-resolved (disabled here) from the stub symlink
+cat > "$CHROOT/etc/NetworkManager/conf.d/10-dns.conf" << 'EOF'
+[main]
+dns=default
+rc-manager=file
+EOF
 
 # --- system configuration ----------------------------------------------------
 echo "$HOST_NAME" > "$CHROOT/etc/hostname"

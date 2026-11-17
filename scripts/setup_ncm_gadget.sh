@@ -11,8 +11,10 @@ NCM_DEV_ADDR="8a:b1:27:16:8e:a7"
 [ -d "${CONFIGFS}" ] || { echo "USB Gadget configfs entry missing!"; exit 1; }
 [ -d "${DIR}" ] && { echo "USB Gadget already configured"; exit 0; }
 
-# create gadget entry
+# create gadget entry: NCM ethernet + ACM serial (ttyGS0 on the stick,
+# /dev/ttyACM* on the host)
 mkdir -p "${DIR}/functions/ncm.1"
+mkdir -p "${DIR}/functions/acm.GS0"
 
 # setup
 
@@ -57,5 +59,6 @@ echo "0xef"   > "${DIR}/bDeviceClass"
 
 # activate
 ln -s "${DIR}/functions/ncm.1" "${DIR}/configs/c.1"
+ln -s "${DIR}/functions/acm.GS0" "${DIR}/configs/c.1"
 ln -s "${DIR}/configs/c.1" "${DIR}/os_desc"
 echo $(ls /sys/class/udc) > "${DIR}/UDC"
