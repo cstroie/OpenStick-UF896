@@ -195,6 +195,45 @@ network comes up after about 10 seconds.
    new `linux-postmarketos-qcom-msm8916`. Otherwise the new kernel lands in
    the rootfs while the modules of the running kernel are replaced.
 
+## UZ801 v3 with Arch Linux ARM
+
+The UZ801 v3 (stock Android 4.4, `ro.product.model=UZ801`, baseband
+`N958St_Z85`) uses the same MSM8916 and the **same stock GPT** as the UF896,
+so the tools above apply. Differences:
+
+| | UF896 | UZ801 v3 |
+| --- | --- | --- |
+| lk2nd board | `thwc,uf896` (`msm8916-512mb-qrd-skuh.dtb`) | `yiming,uz801-v3` (`msm8916-512mb-mtp.dtb`) |
+| Kernel DTB | `msm8916-thwc-uf896` | `msm8916-yiming-uz801v3` |
+| Reset button | GPIO35 | GPIO23 |
+| Backup GPT LBA (3.6 GiB eMMC) | 7569375 | 7634911 |
+
+Getting in: the stock web UI's `http://192.168.100.1/usbdebug.html` enables
+ADB (`POST /ajax {"funcNo":2001}`), which gives a root shell, and
+`adb reboot edl` then enters EDL with no test pads needed.
+
+Build (no root needed: with `uidmap` installed the rootfs script runs in a
+user namespace):
+
+```shell
+BOARD=uz801 scripts/build_hyp_aboot.sh       # files/uz801/{aboot,hyp}.mbn
+scripts/uf896_gpt.py --rootfs-size max stock_gpt.bin files/uz801/gpt.bin
+scripts/arch_rootfs.sh                       # files/uz801/{boot,rootfs}.img
+```
+
+`arch_rootfs.sh` uses the Arch Linux ARM aarch64 userland with the
+postmarketOS MSM8916 kernel. It loads modem and Wi-Fi firmware from the
+stick's own partitions (pmOS `msm-firmware-loader`) and builds `rmtfs` and
+`libqrtr` from source. The image is sized to its contents and grows to the
+whole 2.6 GiB partition on first boot (`x-systemd.growfs`). Re-runs can
+reuse the chroot with `RESUME=1`.
+
+Flash as in [Install](#install), with `files/uz801/hyp.mbn`,
+`files/uz801/aboot.mbn`, `boot.img` and `rootfs.img`, and the backup GPT at
+LBA 7634911. The network, login and hotspot settings match the Alpine image.
+Time comes from `systemd-timesyncd`, and the journal is kept in RAM only
+(`journalctl`).
+
 ## Credits
 
 This repository builds on the work of many people:

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Convert a stock UF896 (Android 4.4) GPT into the OpenStick UF896 layout.
 
+The UZ801 v3 ships the same stock GPT (same entries at the same LBAs), so
+this tool also works for that board.
+
 Input : the stock GPT, i.e. at least the first 34 sectors of the eMMC
         (e.g. `edl rs 0 34 stock_gpt.bin`) or a full eMMC dump.
 Output: a "gpt_both" image: 34 sectors (protective MBR, primary header,
@@ -14,7 +17,8 @@ Changes from stock (all other partitions keep their stock position):
   * tzbak moves into the unused gap after splash
   * boot grows from 16 MiB to 64 MiB and gets a fixed PARTUUID
   * boot and rootfs lose the stock read-only attribute
-  * system (entry 23) becomes rootfs: 1536 MiB right after persist,
+  * system (entry 23) becomes rootfs: 1536 MiB (or --rootfs-size) right
+    after persist,
     Linux filesystem type and the fixed PARTUUID used by extlinux.conf
   * cache, recovery and userdata are dropped
   * the entry array is widened to 128 entries
@@ -60,6 +64,9 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('stock', help='stock GPT dump (>= 34 sectors) or full eMMC image')
     ap.add_argument('output', help='output gpt_both image (67 sectors)')
+    ap.add_argument('--rootfs-size', default='1536', metavar='MIB',
+                    help='rootfs size in MiB, or "max" to use the rest of '
+                         'the eMMC (default: 1536)')
     args = ap.parse_args()
 
     with open(args.stock, 'rb') as f:
@@ -78,6 +85,13 @@ def main():
             % (my_lba, pe_lba, ent_size))
     if first_lba < 2 + ENTRY_SECTORS:
         die('first usable LBA %d leaves no room for 128 entries' % first_lba)
+
+    rootfs_start = LAYOUT['rootfs'][0]
+    if args.rootfs_size == 'max':
+        rootfs_end = last_lba
+    else:
+        rootfs_end = rootfs_start + int(args.rootfs_size) * 2048 - 1
+    LAYOUT['rootfs'] = (rootfs_start, rootfs_end)
 
     stock = data[pe_lba * SECTOR:pe_lba * SECTOR + n_ent * ENTRY_SIZE]
     stock = [stock[i * ENTRY_SIZE:(i + 1) * ENTRY_SIZE] for i in range(n_ent)]

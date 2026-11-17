@@ -14,6 +14,7 @@ group=ccmp;
 key-mgmt=wpa-psk
 pairwise=ccmp;
 proto=rsn;
+pmf=1
 psk=openstick
 
 [ipv4]

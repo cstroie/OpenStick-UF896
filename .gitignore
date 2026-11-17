@@ -9,3 +9,6 @@ files
 mnt
 rootfs
 apk.static
+rootfs-arch
+rootfs-arch.boot
+dl
