@@ -130,5 +130,12 @@ unshare -mr /usr/sbin/chroot /usr/local "\${BIN}" "\$@"
 EOF
 chmod a+x ${CHROOT}/usr/local/bin/chroot.sh
 
+# The chroot's libraries (Alpine v3.20) live in /usr/local/lib, which musl
+# also searches by default on the host (/lib:/usr/local/lib:/usr/lib). Keep
+# the host on its own libraries, or e.g. openvpn picks up the old libcrypto
+# ("EVP_MD_CTX_get_size_ex: symbol not found"). The chroot has no such file,
+# so it keeps the default path and its own /lib.
+printf '/lib\n/usr/lib\n' > ${CHROOT}/etc/ld-musl-aarch64.path
+
 # populate resolv
 echo "nameserver 8.8.8.8" > ${CHROOT}/usr/local/etc/resolv.conf
